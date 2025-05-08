@@ -1,0 +1,29 @@
+ LitMod input file containing general grid information
+11 -5.00 5.00 ! Latitude: number of columns, min and max latitudes (degrees) at the centres of edge columns
+11 -5.00 5.00 ! Longitude: number of columns, min and max longitudes (degrees) at the centres of edge columns
+6.00 2.00 ! Upper boundary for elevation (E_max) and dz (km); dens calibration valid for dz=2
+0 ! Number of sedimentary layers
+3 ! Number of crustal layers
+3416.00 ! MORB density (kg/m3): 3421 [Stixrude et al., 05]; 3408 [Afonso, 2010] after H&P98; 3418 [Stixrude et al., 08]
+2670.00 ! Density reduction for Bouguer anomalies (kg/m3)
+1030.00 ! Density of oceanic water (kg/m3)
+100 ! Total number of MCMC steps; 0 to compute a forward model and stop
+20 ! Number of Rayleigh periods; 0 turns Rayleigh-SW calculator OFF
+0 ! Number of Love periods; 0 turns Love-SW calculator OFF
+0000000 ! Tomography: Ray Tracer wave type by position (1 or 0) (P/Pdiff, S, SKS, PP, Pn, Sn, Rayleigh)
+100 ! altitude of satellite gravimetry, km asl, default 250 km
+1.0 ! travel time uncertainty for the ray tracer, sec, default 1 sec
+2 ! Number of compositionally distinct mantle layers
+1 ! Total number of lithospheric mantle layers
+11 ! Index of the thermodynamic node at the Lithosphere-Asthenosphere Boundary (LAB)
+16 ! Total number of thermodynamic nodes in the mantle
+0 0  ! Sampling intervals for P-to-S and S-to-P receiver function; <=0.0 if no data
+0 -20 ! Shifts for P-to-S and S-to-P receiver functions
+T T ! receiver function mode conversions (T(rue) or F(alse)), Full or Partial (T(rue) and F(alse), respectively)
+1.0 ! width of the gaussian filter for RFs
+
+ Layers: name      K_0   K_T  gamma  tcond    alpha     beta
+ 1 sediments       30.0  3.5    0.0    2.8 2.70E-05 5.00E-11
+ 2 upper_crust     40.0  3.5    0.0    2.6 2.60E-05 1.40E-11
+ 3 low_crust       50.0  4.5    0.0    2.3 2.30E-05 1.10E-11
+ 4 mantle         130.0  4.5    0.0    3.4 3.00E-05 7.69E-12

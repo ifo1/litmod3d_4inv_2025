@@ -1,0 +1,30 @@
+BACKGROUND - this is a general setup for the whole model
+0.           ! elevation, m
+-250000.     ! LAB, m
+20.0         ! lithospheric mantle RHP, nW/m3
+!!!!!! Background RefTemp (degC): Surface, LAB, LAB+40km, TD14, 410km
+10. 1250. 1410. 1470. 1510.
+!!!!!! Mantle composition, wt%
+1.90 7.9 42.6 1.7   ! Lithospheric mantle: Al2O3, FeO, MgO, CaO (SiO2 = 100 - sum)
+4.00 7.8 38.30 3.5  ! Sublithospheric mantle: Al2O3, FeO, MgO, CaO (SiO2 = 100 - sum)
+!!!!!! crustal layer thickness (m), Vs (km/sec), Vp (km/sec), density (kg/m3), RHP (uW/m3)
+3000  2.1 4.1 1500 2400 1.0
+3000  3.3 6   2700 1.0
+24000 3.5 6.5 2800 0.5
+ANOMALY - this is the first mount-type anomaly
+-1. 1.       ! Lat_min, Lat_max, deg
+-1. 1.       ! Lon_min, Lon_max, deg
+3000.        ! Elevation, m
+-250000      ! LAB, m
+20.0         ! lithospheric mantle RHP, nW/m3
+!!!!!! Anomaly RefTemp (degC): Surface, LAB, LAB+40km, TD14, 410km
+10. 1250. 1410. 1470. 1510.
+!!!!!! Composition, wt%
+1.90 7.9 42.6 1.7   ! Lithospheric mantle: Al2O3, FeO, MgO, CaO (SiO2 = 100 - sum)
+4.00 7.8 38.30 3.5   ! Sublithospheric mantle: Al2O3, FeO, MgO, CaO (SiO2 = 100 - sum)
+!!!!!! crustal layer thickness (m), Vs (km/sec), Vp (km/sec), density (kg/m3), RHP (uW/m3)
+3000  2.1 4.1 1700 2400 1.0
+3000  3.3 6   2500 1.0
+27000 3.5 6.5 2600 0.5
+
+
