@@ -1,0 +1,1236 @@
+.\" Manpage for litmod.
+.\" Contact ilya.fomin@mq.edu.au to report mistakes or issues.
+.TH man 6 "22 November 2021" "3.4.9" "LitMod3D_4inv"
+.SH DESCRIPTION
+.B LitMod3D_4inv
+is a tool for combined geophysical-petrological 3D forward/inversion modelling within a probabilistic MCMC framework. It is developed to study the thermal, compositional, density and seismological structure of lithosphere and sublithosphere domains by combining data from petrology and mineral physics with geophysical observables in a self-consistent framework.
+.SH SYNOPSIS
+.B ./LITMOD.i
+[\fIOPTION\fR]...
+[\fIDIRECTORY\fR]...
+[\fIPARAMETERS\fR]...
+[\fIVALUES\fR]...
+
+.SH OPTIONS: GENERAL INPUT-OUTPUT
+
+.TP
+.B \-i \fR[\fIDIRECTORY\fR]
+A relative or an absolute path to an input directory with the model to be computed.
+.br
+\fBExample:\fR $ ./LITMOD.i -i input_inversion
+.br
+\fBDefault:\fR the current working directory.
+.br
+\fBSee also:\fR -ss, -o
+
+.TP
+.B \-dc \fR[\fIFILE\fR]
+A path (with name) to a file with a seismic velocity model (e.g. 1D profile PREM or ak135f or a 3D model like GyPSuM) for the depths below the 410 km. This file is used solely for dispersion curves computation. The path is always relative to the current input directory.
+.br
+\fBExample:\fR $ ./LITMOD.i -i input_inversion -dc startmod.dat
+.br
+\fBDefault:\fR in 1D mode LitMod tries to read dispcurve_ak135.dat and in 3D mode LitMod tries to read dispcurve_gypsum.dat
+.br
+\fBSee also:\fR -i, -dcind
+
+.TP
+.B \-rt \fR[\fIDIRECTORY\fR]
+A relative or an absolute path to a directory with the Ray Tracer input files. If set to a relative path, the current working directory is used as the starting point.
+.br
+\fBExample:\fR $ ./LITMOD.i -i input_synthetic4 -rt input_rt
+.br
+\fBDefault:\fR current input directory.
+.br
+\fBSee also:\fR -i
+
+.TP
+.B \-o \fR[\fIDIRECTORY\fR]
+A relative or an absolute path to a directory for outputs.
+.br
+\fBExample:\fR $ ./LITMOD.i -i input_inversion -o output
+.br
+\fBNotice:\fR must be a different directory from the input one.
+.br
+\fBDefault:\fR the current working directory.
+.br
+\fBSee also:\fR -i
+
+.TP
+.B \-p \fR[\fIDIRECTORY\fR]
+A relative or an absolute path to a directory with the Perple_X configuration files and a thermodynamic database for computations of mantle rock properties. If set to a relative path, the current working directory is used as the starting point.
+.br
+\fBExample:\fR $ ./LITMOD.i -i input_inversion -p perplex
+.br
+\fBDefault:\fR a directory called perplex in the current working directory.
+
+.TP
+.B \-v \fR[\fIDIRECTORY\fR]
+Screen outputs during MCMC inversion. By default, LITMOD3D prints statistics with the number of rejected proposals and acceptance ratio after every accepted model. To turn this redudant and excessive messaging, use:
+.br
+\fBExample:\fR $ ./LITMOD.i -i input_inversion -v 0
+
+.TP
+.B \-w \fR[\fINUMBER\fR]
+Types of output files to be produced.
+.br
+\fBExample 1:\fR $ ./LITMOD.i -i input_inversion -o output -w 2 5
+.br
+\fBExample 2:\fR $ ./LITMOD.i -i input_inversion -o output -w 2 -w 3
+.br
+\fBDefault:\fR none.
+.br
+\fBSee also:\fR -o, -wper, -os
+.br
+\fBAvailable options:\fR
+.RS
+.IP \fB0\fP
+\- Native XYZ files (suitable for GMT package, like psxy) in the format same to the one used for the input models (so they can be used to restart an inversion from an arbitrary step).
+.br
+Use ./plot_gmt6.sh script to plot the input model with GMT v6.
+.IP \fB1\fP
+\- Write the seismic velocity model, events and receivers in the FMTOMO format. XYZ can be converted to VTK using the script:
+.br
+$ ./xyz_to_vtk.sh input.xyz output.vtk
+.br
+If the individual records of data (e.g. individual ray paths) are separated by line with ">" character, one can specify the min and max records:
+.br
+$ ./xyz_to_vtk.sh input.xyz output.vtk 15 20
+.br
+In order to compare the FMTOMO and LitMod3D_4inv (or observed) travel times, use:
+.br
+$ echo "LitMod3D_4inv FMTOMO" > res.txt
+.br
+$ paste <( tail -n+2 otimes.dat | head -n `cat arrivals.dat | wc -l` ) arrivals.dat |awk '{print $5,$11}' | grep -v -F -- '-1.00' | sort -u -k 1,1 -n >> res.txt
+.IP \fB2\fP
+\- HDF5 output. Requires Serial HDF5 installed and linked with LitMod3D_4inv. This format allows to print the model in 3D after convertation to .stl; perhaps via .vrml/.wrl. Use \fBh5dump \-w 0 ./*.h5\fR to view the files in ASCII. See also: \fB\-3dscale\fR
+.IP \fB3\fP
+\- Relaxed JSON format to output the full proposal data (only for debug purposes). Use the following command to convert it to strict JSON:
+$ cat FILE | sed 's/\\-\\./-0./g' | sed 's/\\,\\./,0./g' | sed 's/\\[\\./[0./g' | sed 's/\\,\\\]/]/g' > FILE2
+.IP \fB4\fP
+\- Ray Tracer native output. This option is selected automatically if LitMod3D_4inv starts in the RT escape mode (with \fB\-rtescape\fR 1 option) OR LitMod3D creates a synthetic model and native LitMod input files are written.
+.IP \fB5\fP
+\- TileDB output. See also: \fB\-t\fR 13, \fB\-readtiledb\fR, \fB\-tdbchunk\fR, \fB\-readtiledbcolumn\fR, \fB\-tiledbprimtosec\fR.
+.IP \fB6\fP
+\- PNG images. See also: \fBpng_add_title.sh\fR script.
+.IP \fB7\fP
+\- HDF5 model with 2 km resolution. Requires a special compilation mode set in the makefile.
+.RE
+
+.TP
+.B \-wper \fR[\fINUMBER\fR]
+Periodicity of writing for ASCII, HDF5 and PNG outputs.
+.br
+\fBExample:\fR to write out every 100th accepted proposal, use:
+.br
+$ ./LITMOD.i -i input_inversion -o output -w 2 -w 5 -wper 100
+.br
+\fBDefault:\fR write out every accepted proposal (extremely ineffective!).
+.br
+\fBNotice:\fR TileDB always writes out every accepted proposal.
+.br
+\fBNotice:\fR Generally, the period of writing out should be of the same order of magnitude as the number of columns in the model.
+.br
+\fBSee also:\fR -w
+
+
+.TP
+.B \-nodup \fR[\fINUMBER\fR]
+Set whether duplicates in the input files are allowed. If no duplicates are allowed [Default] the code will stop if the input files contain more than one entry for a column. Otherwise, the code will use the latest set of values for every column. This option allows to merge models from different sources.
+
+.TP
+.B \-tdbchunk \fR[\fINUMBER\fR]
+Number of columns to be cashed before TileDB dumps data to the hard drive. Bigger number results in less IO, but requires more RAM.
+.br
+\fBExample:\fR $ ./LITMOD.i -i input_inversion -o output -w 5 -tdbchunk 10000
+.br
+\fBDefault:\fR write out in packs of 1000 columns.
+.br
+\fBNotice:\fR This is the size (in columns) of the internal LitMod cash used to store the data before it is sent to TileDB output routines. Generally, rare outputs improve the performace.
+.br
+\fBSee also:\fR -w
+
+.TP
+.B \-readtiledb \fR[\fIDIRECTORY\fR] \fR[\fIFIELD\fR] \fR[\fINXMIN\fR] \fR[\fINXMAX\fR] \fR[\fINYMIN\fR] \fR[\fINYMAX\fR] \fR[\fINSTEPMIN\fR] \fR[\fINSTEPMAX\fR]
+Read the TileDB dataset and output the specific field from it.
+.br
+\fBExample:\fR First, create a sample LitMod3D TileDB output:
+.br
+$ ./LITMOD.i -t 13
+.br
+and then use:
+.br
+$ ./LITMOD.i -readtiledb litmod_tiledb_testdata Rayleigh -1 -1 -1 -1 -1 -1
+.br
+to read the whole dataset. One can also specify the cell range (longitude, latitude, interval of MCMC steps)
+.br
+\fBSee also:\fR -w
+
+.TP
+.B \-readtiledbcolumn \fR[\fIDIRECTORY\fR] \fR[\fIIX\fR] \fR[\fIIY\fR] \fR[\fINMntlLay\fR] \fR[\fINClay\fR] \fR[\fISTEPMIN\fR] \fR[\fISTEPMAXfR]
+Read a TileDB dataset and output the data for a column with NClay crustal layers (i.e. N-1 of conductive lithospheric layers set in the model header.dat file) with coordinates (IX,IY) and in the given step interval. Returns depths in kilometres.
+.br
+\fBExample:\fR First, create a LitMod3D TileDB output:
+.br
+$ ./LITMOD.i -i input_inversion -o output -w 5
+.br
+and then use:
+.br
+$ ./LITMOD.i -readtiledbcolumn output/tdb1 Layers 1 10 2 3 -1 -1
+.br
+\fBSee also:\fR -w, -o
+
+.TP
+.B \-tiledbprimtosec \fR[\fIDIRECTORY\fR]
+Convert a TileDB output with the primary parameters (layer thicknesses, crustal Vp/Vs, chemical compositions of the mantle and so on) to an extended database with secondary parameters (geotherms, mantle mineral phase fractions and compositions and some others, as well as all the primary parameters). A
+.br
+\fBExample:\fR First, create a LitMod TileDB output:
+.br
+$ ./LITMOD.i -i input_inversion -o output -w 5 -mcmcsteps 10000
+.br
+Then run this command:
+.br
+$ ./LITMOD.i -i input_inversion -o ./output/sec -tiledbprimtosec output/tdb1 -mcmcsteps 10000
+.br
+\fBNotice:\fR this command relies on the input provided by other commands: \fB\-i\fR specifies a path to the model header file, \fB\-o\fR is a path to the resulting (secondary) database, \fB\-tiledbprimtosec\fR takes a path to the input (primary) database, \fB\-mcmcsteps\fR (optional) should provide the same number that was used to perform an inversion (i.e. it might be different from the value coming in the header.dat file), \fB\-ss\fR and \fB\-os\fR flags (optional) in this command change their behaviour and supply the start and the end step to be read from the primary TileDB database (i.e. they can remove the burnin steps or cut the tail).
+.br
+\fBNotice:\fR It is safe to run LitMod in this mode in parallel via MPI.
+
+.TP
+.B \-rfonly \fR[\fINUMBER\fR]
+During postprocessing (secondary TileDB coputation): use \fB\-rfonly\fR 1 to compute only the receiver functions with the TileDB postprocessing. During normal MCMC inversion: use \fB\-rfonly\fR 1 to invert only for the columns with RF data with potential fields and body waves switched off. By \fB[default]\fR, the whole domain will be processed.
+
+.TP
+.B \-initmcmcstep \fR[\fINUMBER\fR]
+The initial MCMC step of the inversion (for restarts).
+
+
+.TP
+.B \-hdf5sph \fR[\fINUMBER\fR]
+Use \fB\-hdf5sph\fR 0 to write out HDF5 files in Cartesian geometry. Otherwise, use \fB\-hdf5sph\fR 1 \fB[default]\fR to obtain spherical geometry.
+
+.TP
+.B \-hdf5smooth \fR[\fINUMBER\fR]
+The smoothing window (3,5,7...) to use for HDF5 outputs. Use 1 \fB[default]\fR for no smoothing.
+
+.TP
+.B \-3dscale \fR[\fIR\fR] \fR[\fIZ\fR] \fR[\fIE\fR]
+Scaling factors for HDF5 output (see also \fB\-w\fR 2 option). All these three values must be set. Default is to provide the model with natural coordinates except the elevation which is too small compared to other variables. Example of the command to make the output suitable for 3D printing: \fB\-3dscale\fR 20000 10 100 .
+.RS
+.IP \fBR\fP
+\- Divider for the Earth radius which is used to compute all the spherical coordinates. Default value is 1.
+.IP \fBZ\fP
+\- Multiplier for layer thicknesses. Default value is 1.
+.IP \fBE\fP
+\- Multiplier for elevation (topography) only. Default value is 100.
+.RE
+
+
+
+.SH OPTIONS: INPUT-OUTPUT: REFERRING TO SPECIFIC FILES
+
+.TP
+While by default the code tries to read files by their default names with no suffixes attached, one may need to update the files and keep track of the changes. Notice, that every suffix is appended after an underscore.
+
+.TP
+.B \-sufheader \fR[\fISTRING\fR]
+A suffix to be added to the header.dat and domreg.dat files
+
+.TP
+.B \-sufstr \fR[\fISTRING\fR]
+A suffix to be added to all files with the geological structure of a model ( str_mantle.dat and str_crust.dat ). One can specify suffixes for individual files as well using the following additional options.
+.RS
+.IP \fB\-sufstrcrust\fP \fR[\fISTRING\fR]
+\- A suffix to be added to the str_crust.dat file.
+.IP \fB\-sufstrmantle\fP \fR[\fISTRING\fR]
+\- A suffix to be added to the str_mantle.dat file.
+.RE
+
+.TP
+.B \-sufprop \fR[\fISTRING\fR]
+A suffix to be added to all files with the proposal bounds for a model ( propbounds_mantle_*.dat and propbounds_crust_*.dat ). One can specify suffixes for individual sets of files as well using the following additional options.
+.RS
+.IP \fB\-sufpropcrust\fP \fR[\fISTRING\fR]
+\- A suffix to be added to the propbounds_crust_min.dat , propbounds_crust_max.dat , propbounds_crust_stdev.dat file.
+.IP \fB\-sufpropmantle\fP \fR[\fISTRING\fR]
+\- A suffix to be added to the propbounds_mantle_min.dat , propbounds_mantle_max.dat , propbounds_mantle_stdev.dat file.
+.RE
+
+.TP
+.B \-sufobs \fR[\fISTRING\fR]
+A suffix to be added to all files with the observations associated with a model ( str_mantle.dat and str_crust.dat ).
+.RS
+.IP \fB\-sufobsray\fP \fR[\fISTRING\fR]
+A suffix to be added to the obs_rayleigh.dat file.
+.IP \fB\-sufobselev\fP \fR[\fISTRING\fR]
+A suffix to be added to the obs_gravelev.dat file.
+.IP \fB\-sufobsgrad\fP \fR[\fISTRING\fR]
+A suffix to be added to the obs_gravgrad.dat file.
+.IP \fB\-sufobsrecf\fP \fR[\fISTRING\fR]
+A suffix to be added to the obs_recfunc.dat file.
+.IP \fB\-sufobstt\fP \fR[\fISTRING\fR]
+A suffix to be added to the obs_traveltime.dat file.
+.RE
+
+.TP
+.B \-sufoutput \fR[\fISTRING\fR]
+A suffix to be assigned to all the produced *.dat files
+.br
+\fBExample:\fR to create a bunch of files
+.br
+$ ./LITMOD.i -i input_inversion -os 5 -w 0 -mcmcsteps 0
+.br
+\fBDefault:\fR none (results in writing str_crust.dat and str_mantle.dat)
+.br
+\fBNotice:\fR must be positive.
+.br
+\fBNotice:\fR the random number generated will be NOT restarted from the same offset.
+.br
+\fBSee also:\fR -tiledbprimtosec, -w
+
+
+
+
+
+.SH OPTIONS: MISFIT AND FORCIBLE COMPUTATION OF FIELDS
+
+.TP
+.B \-misfit \fR[\fINUMBER\fR]
+Scale the value of initial misfit to the given value and apply the same scaling factor to all further misfits. The value controls PT swapping efficiency and probability of acceptance for a proposal.
+.br
+\fBExample:\fR to scale the initial misfit to 10000 use
+.br
+$ ./LITMOD.i -i input_inversion -misfit 10000
+.br
+\fBDefault:\fR use natural scaling (i.e. scaling with observables sigmas only). Equivalent to -misfit -1
+.br
+\fBSee also:\fR -misfitwt1, -misfitwt2
+
+.TP
+.B \-misfitwt \fR[\fINUMBERS\fR]
+Set multipliers for the individual misfit components to adjust their weight in the total misfit. Use zeros to disable a certain misfit component. Values for every component must be provided, even if the specific component is not used in the current computation. The normal value is one. The components with weight below 0.01 are disabled.
+.br
+\fBExample:\fR to make the elevation misfit component 10 times greater use
+.br
+$ ./LITMOD.i -i input_inversion -misfitwt 1 10 1 1 1 1 1 1 0
+.br
+\fBNotice:\fR none of the misfit weights can be negative.
+.br
+\fBNotice:\fR the effect of this key is totally equivalent to scaling of observable sigmas (notice that the value of sigma will be squared during misfit computation)
+.br
+\fBDefault:\fR use natural scaling (i.e. scaling with observables sigmas only). Equivalent to -misfitwt 1 1 1 1 1 1 1 1 1
+.br
+\fBSee also:\fR -misfitcomp to check the order of the individual misfit components
+.br
+\fBThe sequence is:\fR
+.RS
+.IP \fB1\fP
+\- Bouguer anomaly
+.IP \fB2\fP
+\- Elevation
+.IP \fB3\fP
+\- Rayleigh Wave Phase Velocity Dispersion Curve
+.IP \fB4\fP
+\- Geoid height
+.IP \fB5\fP
+\- Surface heat flux
+.IP \fB6\fP
+\- Ray Tracer absolute travel times
+.IP \fB7\fP
+\- Gravity gradients (Uxx, Uyy, Uzz)
+.IP \fB8\fP
+\- Free Air anomaly
+.IP \fB9\fP
+\- receiver functions (both P-wave and S-wave) - set the sampling interval to zero to switch off
+.IP \fB10\fP
+\- penalise for negative density contrasts in the crust. The weight factor sets a multiplier for the absolute density difference between the adjacent crust layers. Only negative steps (going downward) are counted.
+.RE
+
+.TP
+.B \-misfitwt1 \fR[\fISTEPX\fR] \fR[\fINUMBERS\fR]
+.TQ
+.B \-misfitwt2 \fR[\fISTEPY\fR] \fR[\fINUMBERS\fR]
+Divide the entire simulation into three stages:
+.br
+1) before the MCMC step number X: the first set of misfit scaling factors (weights) applies
+.br
+2) in between the step X and step Y: a linearly interpolated set of values is used
+.br
+3) after the MCMC step Y (Y > X): the second set of misfit scaling factors applies, and in between the step X and step Y
+.br
+\fBExample:\fR $ ./LITMOD.i -i input_inversion -mcmcsteps 100000 -misfitwt1 5000 0 10 1 1 1 1 1 1 1 -misfitwt2 20000 0 1 1 1 1 1 1 1 100
+.br
+to make the elevation component more permissive in the beginning of the inversion.
+.br
+\fBNotice:\fR all misfit weights must be above zero.
+.br
+\fBDefault:\fR use natural scaling during the entire simulation (i.e. scaling with observables sigmas only and the scaling factors equal 1).
+.br
+\fBSee also:\fR -misfitwt to check the order of the individual misfit components
+
+
+.TP
+.B \-misfitcomp \fR[\fINUMBER(S)\fR]
+Select misfit components to use. Not-used fields won't be computed and the corresponding misfits will equal to zero. Mutually exclusive with misfitwt.
+.br
+\fBExample:\fR $ ./LITMOD.i -i input_inversion -misfitcomp 3 2
+.br
+to use elevation and Rayleigh phase velocities
+.br
+\fBDefault:\fR equivalent to -misfitcomp 2 3 4 5 6 7 8 9 10 (depends on the header.dat seismic settings)
+.br
+\fBNotice\fR: it is strongly recommended to use Bouguer and Free Air as mutually exclusive misfit components, because the differences in the Bouguer correction computation procedure may lead to inconsistency between the LitMod3D_4inv solver and any other data source.
+
+.TP
+.B \-normobs \fR[\fIBOOLEAN\fR]
+Normalise the misfit components by the number of individual observations (e.g. number of columns for elevation, number of columns multiplied by number of periods for dispersion curves).
+.br
+\fBExample:\fR $ ./LITMOD.i -i input_inversion -normobs 1
+.br
+\fBDefault:\fR do not normalise (equivalent to -normobs 0)
+.br
+\fBSee also:\fR -misfitwt
+
+.TP
+.B \-misfitequal \fR[\fINUMBER\fR]
+Different individual misfit components may have very different absolute values, which effectively supresses low-value components. This option allows to rescale the individual components to the similar absolute values at the beginning of an MCMC inversion. Use this option to set the maximum allowed ratio of the greatest misfit component to the smallest one at the beginning of the simulation.
+.br
+\fBExample:\fR $ ./LITMOD.i -i input_inversion -misfitequal 3
+.br
+\fBDefault:\fR do not rescale (equivalent to -misfitequal -1)
+
+.TP
+.B \-misfitmod \fR[\fISTRING\fR]
+Procedure to compute misfit computation.
+.br
+\fBExample:\fR $ ./LITMOD.i -i input_inversion -misfitmod xi2
+.br
+\fBDefault:\fR L2 norm
+.br
+\fBAvailable options\fR:
+.RS
+.IP \fBL2\fP
+\- L2 norm with sigmas equal to the supplied observed data uncertainty: (obs-calc)^2/sigma^2.
+.IP \fBxi2\fP
+\- Chi-squared normalised by the observations: (obs-calc)^2/|obs|.
+.RE
+
+.TP
+.B \-misfitrscl \fR[\fINUMBER\fR]
+Set the number of MCMC steps after which misfit will be rescaled.
+.br
+\fBExample:\fR $ ./LITMOD.i -i input_inversion -misfit 10000 -misfitrscl 20000 -mcmcsteps 100000
+.br
+to rescale the misfit to 10000 after every 20000 steps
+.br
+\fBDefault:\fR never rescale the misfit
+.br
+\fBSee also:\fR -misfitrscltimes - must be set accordingly
+
+.TP
+.B \-misfitrsclfact \fR[\fINUMBER\fR]
+Set a threshold factor for the misfit value to be rescaled.
+.br
+\fBExample:\fR $ ./LITMOD.i -i input_inversion -misfit 10000 -misfitrscltimes 10 -mcmcsteps 100000
+.br
+to rescale the misfit to 10000 every time it becomes 10 times smaller than the original value
+.br
+\fBDefault:\fR never rescale the misfit
+.br
+\fBSee also:\fR -misfitrscltimes - must be set accordingly
+
+.TP
+.B \-misfitrscltimes \fR[\fINUMBER\fR]
+Set the number of Dynamic Rescalings to perform.
+.br
+\fBExample:\fR $ ./LITMOD.i -i input_inversion -misfit 10000 -misfitrscltimes 10 -mcmcsteps 100000 -misfitrscltimes -1
+.br
+to rescale the misfit to 10000 every time it becomes 10 times smaller than the original value
+.br
+$ ./LITMOD.i -i input_inversion -misfit 10000 -misfitrscltimes 10 -mcmcsteps 100000 -misfitrscltimes 3
+.br
+to rescale the misfit to 10000 when it becomes 10 times smaller than the original value, and limit the number of rescalings to three
+.br
+\fBDefault:\fR never rescale the misfit (equivalent to -misfitrscltimes 0)
+.br
+\fBSee also:\fR -misfitrscl and -misfitrsclfact
+
+.SH OPTIONS: PARALLEL TEMPERING (PT)
+
+.TP
+.B \-swapadj \fR[\fIBOOLEAN\fR]
+Allow to swap states only between Markov chains with adjacent values of PT temperature.
+.br
+\fBExample:\fR $ mpirun -n 6 ./LITMOD.i -i input_inversion -swapadj 1
+.br
+\fBDefault:\fR swap chains with any PT temperature (equivalent to -swapadj 0)
+
+.TP
+.B \-swapfreq \fR[\fINUMBER\fR]
+The chance to try to swap chains (from 0 (0%) to 1 (100%) probability).
+.br
+\fBExample:\fR $ mpirun -n 6 ./LITMOD.i -i input_inversion -swapfreq 0.5
+.br
+to try a PT swap after 50% of MCMC steps.
+.br
+\fBDefault:\fR try to swap chains after every MCMC iteration.
+
+.TP
+.B \-nswap \fR[\fINUMBER\fR]
+The maximum number of chains trying to swap their states after each MCMC step. I.e. number of swaps itself is two times smaller.
+.br
+\fBExample:\fR $ mpirun -n 6 ./LITMOD.i -i input_inversion -nswap 4
+.br
+to limit the number of swapping chains to 4 (out of 6) on every MCMC step.
+.br
+\fBDefault:\fR try to swap all chains.
+
+.TP
+.B \-ptadaptive \fR[\fIBOOLEAN\fR]
+Adjust PT temperatures dynamically using Vousden et al. (2002) approach.
+.br
+\fBExample:\fR $ mpirun -n 6 ./LITMOD.i -i input_inversion -ptadaptive 1
+.br
+\fBDefault:\fR do not use Adaptive Tempering (equivalent to -ptadaptive 0)
+
+.TP
+.B \-ptmixdelay \fR[\fINUMBER\fR]
+The delay (in MCMC steps) before PT mixing (swapping the states between individual chains) begins.
+.br
+\fBExample:\fR $ mpirun -n 6 ./LITMOD.i -i input_inversion -ptmixdelay 1000 -mcmcsteps 10000
+.br
+\fBDefault:\fR start the mixing immediately (equivalent to -ptmixdelay -1)
+
+.TP
+.B \-pttladder \fR[\fISTRING\fR]
+The initial PT temperature distribution. Example: \fB\-pttladder\fR power10 . Available options:
+.br
+\fBExample:\fR $ mpirun -n 6 ./LITMOD.i -i input_inversion -pttladder logarithm
+.br
+\fBDefault:\fR geometric progression
+.RS
+.IP \fBinversedt\fP
+\- geometric progression.
+.IP \fBlogarithm\fP
+\- Sambridge, (2014) log-random sequence.
+.IP \fBpower10\fP
+\- Atchade et al. (2011) 10-to-power sequence.
+.RE
+
+.TP
+.B \-ptt1chains \fR[\fINUMBER\fR]
+The number of chains with the PT temperature equal to 1 (non-tempered chains).
+.br
+\fBExample:\fR $ mpirun -n 6 ./LITMOD.i -i input_inversion -ptt1chains 3
+.br
+\fBDefault:\fR one chain (equivalent to -ptt1chains 1)
+
+.TP
+.B \-pttmax \fR[\fINUMBER\fR]
+The maximum PT temperature. Higher temperatures facilitate acceptance of proposals with higher misfits.
+.br
+\fBExample:\fR $ mpirun -n 6 ./LITMOD.i -i input_inversion -pttmax 1000
+.br
+\fBDefault:\fR the value of 10.
+
+.SH OPTIONS: MARKOV CHAINS and ACCEPTANCE RULES
+
+.TP
+.B \-nmcmc \fR[\fINUMBER\fR]
+The number of Markov chains.
+.br
+\fBExample:\fR $ mpirun -n 6 ./LITMOD.i -i input_inversion -nmcmc 1 -pttmhmtm -0.5 -mtmis 1 -mtmtrials 6
+.br
+to run an inversion on 6 CPUs with 1 Markov chain using MTMIS with 6 individual proposals computed on every MCMC step.
+.br
+\fBDefault:\fR the number of computational cores supplied with mpirun -n N.
+
+.TP
+.B \-mcmcsteps \fR[\fINUMBER\fR]
+The number of MCMC steps to be performed.
+.br
+\fBExample:\fR $ mpirun -n 6 ./LITMOD.i -i input_inversion -mcmcsteps 1000000
+.br
+\fBDefault:\fR a value provided in the header.dat file.
+
+.TP
+.B \-mhsigma \fR[\fINUMBER\fR]
+Set a sigma for the Metropolis-Hastings acceptance rule. This is NOT the sigma of the observables. Directly affects acceptance probability.
+.br
+\fBExample:\fR $ mpirun -n 6 ./LITMOD.i -i input_inversion -mhsigma 0.5
+.br
+\fBDefault\fR value is 1.
+
+.TP
+.B \-mhcr \fR[\fIBOOLEAN\fR]
+The Cascade Rule allows to save computational time during Metropolis-Hastings iterations for the steps when partial sum of misfits is already enough to reject the step.
+.br
+\fBExample:\fR $ ./LITMOD.i -i input_inversion -mhcr 0
+.br
+to compute all forward problems on every MCMC step
+.br
+\fBNotice:\fR cannot be applied for multiproposal methods.
+.br
+\fBDefault:\fR to use the Cascade Rule. The opposite might be relevant only for debugging purposes.
+
+.TP
+.B \-mtmis \fR[\fIBOOLEAN\fR]
+The multiproposal method to use: Multiple-Trial Metropolized Independence Sampler (MTMIS) instead of Multiple-Try Metropolis (MTM).
+.br
+\fBExample:\fR $ ./LITMOD.i -i input_inversion -mtmis 0
+.br
+to use the Multiple-Try Metropolis
+.br
+\fBDefault:\fR use the Multiple-Try Metropolized Independence Sampler (equivalent to -mtmis 1).
+
+.TP
+.B \-mtmmult \fR[\fINUMBER\fR]
+A multiplier for the acceptance criteria of multiproposal methods. Directly affects acceptance probability.
+.br
+\fBExample:\fR $ mpirun -n 6 ./LITMOD.i -i input_inversion -nmcmc 1 -pttmhmtm -0.5 -mtmtrials 6 -mtmmult 0.5
+.br
+\fBDefault\fR value is 1 (so-called natural scaling).
+
+.TP
+.B \-mtmtrials \fR[\fINUMBER\fR]
+The number of individual proposals to be computed during every MCMC step by multiproposal chains.
+.br
+\fBExample:\fR $ mpirun -n 6 ./LITMOD.i -i input_inversion -nmcmc 1 -pttmhmtm -0.5 -mtmtrials 12
+.br
+\fBDefault\fR value is 10.
+.br
+\fBNotice\fR: If the MTMIS is used, it is the total number of computed proposals. If the MTM is used, it is the number of proposals without the same amount of the anchor points.
+.br
+\fBNotice\fR: always try to set the number of proposals dividable by the number of cores to achieve the best performance. Check the LitMod stdout output to assess the actual sharing of the computational load between CPUs.
+
+.TP
+.B \-pttmhmtm \fR[\fINUMBER\fR]
+A threshold value of the PT temperature to switch between single proposal (MH) and multiproposal (MTM, MTMIS) chains. If the value passed to this variable is non-negative, MCMCs with PT temperature higher than this value are computed with Metropolis-Hastings, while chains with lower PT temperatures use Multiple-Try Metropolis or Multiple-Trial Metropolized Independence Sampler (look \-mtmis switch). If the value passed to this variable is negative, MCMCs with PT temperature lower than the absolute value are computed with Metropolis-Hastings, while chains with higher PT temperatures use Multiple-Try Metropolis or Multiple-Trial Metropolized Independence Sampler.
+.br
+\fBExample:\fR $ mpirun -n 6 ./LITMOD.i -i input_inversion -nmcmc 1 -pttmhmtm -0.5 -mtmtrials 6
+.br
+to run a single chain with PT temperature equals to 1 and using MTMIS with 6 proposals.
+.br
+\fBDefault\fR value is 20000.
+
+.SH OPTIONS: ORTHOGONAL PARALLEL MCMC (OMCMC)
+
+.TP
+.B \-omcmc \fR[\fIBOOLEAN\fR]
+Set \fB\-omcmc\fR 1 to turn on the Orthogonal Parallel MCMC for PTT=1 chain(s). Notices:
+.RS
+.IP \fBQuantity\fP
+\- Each sampling MCMC must run on individual CPU. Use \fB\-ptt1chains\fR option to set the number of PTT=1 chains
+.IP \fBVertical\fP
+\- during vertical phases each PTT=1 chain (CPU) sample the domain with a set of proposals. Generally, code is optimized for high number of vertical steps compared to the number of columns in the model (i.e. all or nearly all columns change during this phase). During this phase MCMCs may utilize Metropolis-Hastings or MTM/MTMIS techniques and perform PT swaps.
+.IP \fBHorizontal\fP
+\- during horizontal phases (i.e. all the subchains logically merge to one MCMC) LitMod3D applies Sample Metropolis-Hastings (SMH) technique. All the chains compute a global mean model and its variation, which is used to create a whole-domain proposal. Then all the PTT=1 CPUs compute this whole-domain proposal and only the selected PTT=1 MCMC decided whether to accept it or reject.
+.IP \fBPerformance\fP
+\- to gain the maximum performance, it is highly recommended that number of columns in model is dividable by number of PTT=1 CPUs and each of PTT>1 CPUs compute a number of proposals (MTM/MTMIS) equal to number of columns per each CPU during Horizontal phase.
+.RE
+
+.TP
+.B \-omcmctvth \fR[\fINUMBER\fR] \fR[\fINUMBER\fR]
+The numbers of steps spent in the vertical (multiple chains) and horizontal (single chain) phases.
+.br
+\fBExample:\fR $ mpirun -n 6 ./LITMOD.i -i input_inversion -mcmcsteps 10000 -omcmc 1 -omcmctvth 100 10 -ptt1chains 6
+.br
+\fBDefault\fR values are 10 and 10, which is way too small.
+
+.SH OPTIONS: COLUMNS TO SAMPLE
+
+.TP
+.B \-fixcol \fR[\fICOL1\fR] \fR[\fICOL2\fR] ...
+The columns not to be modified during MCMC simulation (refer to Appendix 3).
+.br
+\fBExample:\fR $ ./LITMOD.i -i myowninput -fixcol 12 50 107
+.br
+will fix three columns with coordinates (1,2), (6,5), (8,10) in a mesh 11 by 11.
+.br
+\fBDefault:\fR sample all columns
+.br
+\fBNotice 1:\fR has lower priority than the -alwcol and -modcol keys.
+.br
+\fBNotice 2:\fR some systems crash if the list of columns is too long (exceeds hundreds of columns). Use the file domreg.dat to set the column sampling scheme in that case.
+
+.TP
+.B \-alwcol \fR[\fICOL1\fR] \fR[\fICOL2\fR] ...
+The columns to be modified during MCMC simulation (refer to Appendix 3).
+.br
+\fBExample:\fR $ ./LITMOD.i -i myowninput -alwcol 12 50 107
+.br
+will fix three columns with coordinates (1,2), (6,5), (8,10) in a mesh 11 by 11. The number of columns is not limited.
+.br
+\fBDefault:\fR sample all columns
+.br
+\fBNotice 1:\fR has higher priority than the -fixcol and -modcol keys
+.br
+\fBNotice 2:\fR some systems crash if the list of columns is too long (exceeds hundreds of columns). Use the file domreg.dat to set the column sampling scheme in that case.
+
+.TP
+.B \-modcol \fR[\fIXSTART\fR] \fR[\fIXEND\fR] \fR[\fIYSTART\fR] \fR[\fIYEND\fR]
+A rectangular region in the model to be sampled during MCMC inversion, by specifying lower and upper boundaries for X and Y coords (refer to Appendix 3).
+.br
+\fBExample:\fR $ ./LITMOD.i -i myowninput -modcol 5 6 7 8
+.br
+\fBDefault:\fR sample all columns
+
+.SH OPTIONS: PROPOSALS
+
+.TP
+.B \-mcmcprop \fR[\fINUMBER\fR]
+Choose MCMC proposal mode: use \fB\-mcmcprop\fR 1 for normal \fB[default]\fR and \fB\-mcmcprop\fR 0 for uniform distribution. Limits of perturbation can be set into propbounds file.
+
+.TP
+.B \-propcomp \fR[\fICOMPONENTS\fR]
+Set proposal components for all chains. Multiple options can be selected using \fB\-propcomp\fR 1 3 . Limits of perturbation can be set into input_crust_bounds file. By \fB[default]\fR all the components are included into proposal. The list of available options: see \fB\-propchain\fR option.
+.RS
+.IP \fB0\fP
+\- Chemical compositions. By default is ON.
+.IP \fB1\fP
+\- Random layer thickness for all layers, including all crustal layers, Moho, and LAB. By default is ON.
+.IP \fB2\fP
+\- Density structure. By default is ON.
+.IP \fB3\fP
+\- Vp/Vs ratio. By default is ON.
+.IP \fB4\fP
+\- Thermal structure beneath the LAB (LAB+40km, half-way to 410 km, and at 410 km). By default is ON. Notice, that the code uses the thermal definition of the LAB with value fixed at 1250 degC.
+.IP \fB5\fP
+\- A coefficient to reduce the density, Vp and Vs right below the Moho.
+.RE
+
+.TP
+.B \-samplemgnum \fR[\fINUMBER\fR]
+Use \fB\-samplemgnum\fR 1 to sample #Mg (=MgO/(FeO+MgO), mol%) instead of FeO (wt%). The actual iron content is reconstructed using the #MgO ratio. Some inversions exhibit normal distributions in the MgO content and #Mg, while the posterior for FeO forms a uniform distribution. Therefore, it might make sense to target the #Mg as an inversion parameter, especially with covariance matrices (since they imply normal distributions).
+
+.TP
+.B \-inccdens \fR[\fINUMBER\fR]
+Use \fB\-inccdens\fR 1 to facilitate a crustal density profile with increasing densities. By default is to sample crustal densities as independent parameters.
+
+.TP
+.B \-chemtoal2o3 \fR[\fINUMBER\fR]
+Use \fB\-chemtoal2o3\fR 1 to switch the proposal modes of secondary chemical compounds (FeO, MgO, CaO) to the same mode as Al2O3 right before the first covariance matrix update. It allows to start sampling those chemical compounds with the imposed correlations on their content limits, and then switch use the correlation matrices to draw their contents.
+
+
+.TP
+.B \-smplmoho \fR[\fINUMBER\fR] \fR[\fINUMBER\fR]
+Use \fB\-smplmoho\fR with two non-negative numbers to sample the Moho depth within the given percentage of the initial value. The thickness of the last crustal layer is adjusted to fit the given Moho depth (i.e. the bounds for it become unset).
+
+.TP
+.B \-propflim \fR[\fINUMBER\fR]
+Determine, whether the min-max proposal bounds (parameter limits) shall be enforced for normally distributed proposals. It changes code 20 to 21, and 30 to 31 (look Appendix 2: Proposal generation modes). Use \fB\-propflim\fR 1 to turn this option ON \fB[default]\fR, and \fB\-propflim\fR 0 to switch it OFF.
+
+.TP
+.B \-resample \fR[\fINUMBER\fR]
+Determine, whether to resample instead of rejection during proposal generation. It changes code 20 and 21 to 22, and 30 and 31 to 32 (look Appendix 2: Proposal generation modes). Use \fB\-resample\fR 1 to turn this option ON \fB[default]\fR, and \fB\-resample\fR 0 to switch it OFF.
+
+.SH OPTIONS: NOISE AND RANDOM NUMBER GENERATION
+
+.TP
+.B \-r \fR[\fINUMBER\fR]
+Pseudo-Random Number Generator (PRNG):
+.RS
+.IP \fB1\fP
+\- time-seeded system default (must not be used in MPI runs)
+.IP \fB2\fP
+\- \fB[default]\fR try access system /dev/urandom device and add PID, if fails, use time-PID shuffler to set the actual PID.
+.IP \fB3\fP
+\- system-independent JKISS32 reproducible generator (must not be used in MPI runs).
+.IP \fB>3\fP
+\- Initiate system default random generator with a given number (all MPI processes get that value shifted by the CPU rank).
+.RE
+
+.SH OPTIONS: FORWARD (GEOLOGICAL) MODEL COMPUTATION
+
+.TP
+.B \-dmlitho \fR[\fINUMBER\fR]
+Set a threshold (asl positive), so that any column with elevation below it will have (1) its mantle composition(s) set to the Depleted Mantle from [Salters, Stracke, 2004] (table 4, 1.5% mixture). The bounds will allow it to become more depleted within narrow limits expanding towards the surface.
+
+.TP
+.B \-rfnft \fR[\fINUMBER\fR]
+Sets the minimum number of points in the frequency domain to compute the receiver functions. The default way is to set it as the first power of two to exceed the number of observed RF points. This estimate is prone to result in a "flat" end of the computed receiver functions and therefore miss important signal information. Therefore, one may need to set it manually as the power of two (256, 512, 1024 ...) to allow the code for high frequencies and long recorded RFs.
+
+.TP
+.B \-isodepth \fR[\fINUMBER\fR]
+Choose the isostasy iterations mode during synthetic computations: use \fB\-isodepth\fR 0 to modify the Moho depth value to preserve the elevation, and use \fB\-isodepth\fR 1 to 3 to modify the certain layer thickness in order to keep the Moho constant. Option 0 requires more iterations to converge (typical 50 instead of 10). \fB[Default]\fR is to modify the lower crust layer.
+
+.TP
+.B \-tempfinel \fR[\fINUMBER\fR]
+Temperature computation mode for 1D columns. Use \fB\-tempfinel\fR 1 for Finite Elements method \fB[Default]\fR and \fB\-tempfinel\fR 0 for Finite Differences.
+
+.TP
+.B \-dcind \fR[\fINUMBER\fR]
+Use 1D or 3D setup for the seismic velocity structure below 410 km. Use \fB\-dcind\fR 1 for 3D setup (for each individual column) and \fB\-dcind\fR 0 for a 1D global model \fB[Default]\fR.
+
+.TP
+.B \-dcelev \fR[\fINUMBER\fR]
+Set an altitude (positive asl) to threshold the dispersion data. If the elevation of a specific column is greater than the value supplied with this command (e.g. 200 m below sea level with \fB\-dcelev\fR -200), its dispersion data is used for the inversion. If the altitude is less than the value, these values are not used at all or they are replaced according to the \fB\-dctrans\fR, \fB\-dccont\fR, \fB\-dcocean\fR settings. This option is relevant for the domains with large oceanic part with poorly constrained dispersion data.
+
+.TP
+.B \-dctrans \fR[\fINUMBER\fR]
+Set the elevation (positive asl) of the transition from the oceanic to continental crust in order to substitute the Rayleigh dispersion curves in the poorly constrained regions with some "defaults". The code will use the curve from \fB\-dccont\fR for the range of altitudes from \fB\-dctrans\fR to \fB\-dcelev\fR, and \fB\-dcocean\fR for everything below \fB\-dctrans\fR.
+
+.TP
+.B \-dccont \fR[\fIFILENAME\fR]
+The filename for the Rayleigh dispersion curve to be used in poorly constrained "continental" settings. Look \fB\-dctrans\fR for more information.
+
+.TP
+.B \-dcocean \fR[\fIFILENAME\fR]
+The filename for the Rayleigh dispersion curve to be used in poorly constrained "oceanic" settings. Look \fB\-dctrans\fR for more information.
+
+.TP
+.B \-gravupd \fR[\fINUMBER\fR]
+Periodicity of the gravity reference model updates. It is needed if the model evolved far from the previous state. Use \fB\-gravupd\fR 100 to update the gravity reference model every 100 MCMC steps. Use -1 to disable it. \fB[Default]\fR value is 50.
+
+.TP
+.B \-gravref \fR[\fISTRING\fR]
+Type of the reference gravity model:
+.RS
+.IP \fBaverage\fP
+\- mass conservative average of the model computed as a layered structure with layer depths corresponding to the average for the given model and densities altered to obey the mass conservation.
+.IP \fBzeromost\fP
+\- mass-conservative zeromost column. The code pick the column with the observed elevation at zero and corrects its sublithospheric density in order to obey mass conservation of the entire model.
+.IP \fB[FILENAME]\fP
+\- read the reference structure from the specified file located in the same folder with the geological model.
+.RE
+
+.TP
+.B \-isoiter \fR[\fINUMBER\fR]
+Number of iterations during isostasy euqilibration cycle (used only during creation of a synthetic model).
+.br
+Set \fB\-isoiter\fR 20 to perform 20 iterations. \fB[Default]\fR value is 10.
+
+.TP
+.B \-rtupd \fR[\fINUMBER\fR]
+Periodicity of the Ray Tracer paths updates during MCMC inversion. The procedure updates the catalogues of rays crossing every specific column. It is needed if the model evolved far from the previous state. Use \fB\-rtupd\fR 1000 to recompute ray tracing every 1000 MCMC steps. Use -1 to disable it. \fB[Default]\fR value is 100.
+
+.TP
+.B \-rtdist \fR[\fINUMBER\fR]
+Location of the events generated by Ray Tracer in the synthetic mode.
+.RS
+.IP \fB0\fP
+\- local events: in the local (LitMod3D_inv model) domain
+.IP \fB1\fP
+\- regional events: within 1000 km from the nearmost edge of the LitMod3D_inv model
+.IP \fB2\fP
+\- teleseismic events: more than 30 degrees and less than 90 degrees from the model (to avoid shadow zones)
+.RE
+
+.TP
+.B \-rtnrays \fR[\fINUMBER\fR]
+Number of synthetic rays to be generated by the Ray Tracer OR the number of rays to be read from the input file (the rays which are not to be computed, will be skipped). Notice that each pair event-station (for body waves) or event-station-period (for surface waves) is counted separately.
+.br
+Currently the code allows to generate synthetic rays in parallel (with MPI). In that case the user must execute
+.br
+$ cat data_synt_*.csv > data_synt.csv
+.br
+in the resulting directory to assemble synthetic rays from individual cores to one file. Notice, that technical implementation presumes that no synthetic rays during generation of the events in parallel more crossed the CMB (because it offsets random sequence on one core compared to the others). Therefore, an action might be required to clean it.
+.br
+Use the following command to check the number of stations:
+.br
+$ cat < data_synt.csv | awk '{print $8" "$9}' | sort | uniq | wc -l
+.br
+Use the following command to check the number of events:
+.br
+$ cat < data_synt.csv | awk '{print $5" "$6" "$7}' | sort | uniq | wc -l
+.br
+Replace "| wc -l" with "> filename.txt" to generate a file containing Lon and Lat of stations or Lon, Lat and depth of events for GMT or any other plotting software.
+
+.TP
+.B \-rtdepth \fR[\fIMINDEPTH\fR] \fR[\fIMAXDEPTH\fR]
+Set MIN and MAX depths for Ray Tracer synthetic seismic events generation routine. Use \fB\-rtdepth\fR 300 660 to generate events between 300 and 660 km deep. The \fB[default]\fR range is 10 to 660 km.
+
+.TP
+.B \-rtcellst \fR[\fINLON\fR] \fR[\fINLAT\fR]
+\fB[Default]\fR for the synthetic mode is to create seismic stations (receivers) in every cell. This option allows to decrease their density by specifying number of cells in LON and LAT directions. Use \fB\-rtcellst\fR 2 3 to set 1 station per each block of 6 cells (2 in longitudal direction, 3 in latitudal direction).
+
+.SH OPTIONS: DIRECT ACCESS TO SOLVERS
+
+.TP
+.B \-rtescape \fR[\fINUMBER\fR]
+Escape immediately to the Ray Tracer instead of LitMod3D domain initialization with this option: \fB\-rtescape\fR 1 . Only the native Ray Tracer files will be used (i.e. for local domain). If running a parallel job, run a command like \fBcat Sraylength_0*.txt >> Sraylength_new.txt\fR to concatenate the files. Possible options are:
+
+.TP
+.B \-dcescape \fR[\fINUMBER\fR]
+Escape immediately to the Dispersion Curve calculator instead of LitMod3D domain initialization. That mode requires an input file with layered structure suitable for DC calculator. The default name for the file is dcctest.dat , the other name can be specified with \fB\-dc\fR flag, and another directory can be specified with \fB\-i\fR flag. The code also tries to look for attenuation correction parameters ( qs(1:3),[vscorr,vpcorr](1:3) ) in a file with the name att<name of the file> (e.g. attdcctest.dat), otherwise it proceeds with zeroes.
+.RS
+.IP \fB0\fP
+\- do not use this mode \fB[Default]\fR
+.IP \fB1\fP
+\- Love Dispersion Curve (requires period_love.dat file with periods)
+.IP \fB2\fP
+\- Rayleigh Dispersion Curve (requires period_ray.dat file with periods)
+.RE
+
+.TP
+.B \-rfescape \fR[\fISWITCH\fR] \fR[\fICRUST\fR] \fR[\fITDNOD\fR] \fR[\fINSAMP\fR] \fR[\fIDT\fR]
+Escape immediately to the Receiver Functions solver instead of LitMod3D domain initialization with this option. The mde requires following parameters:
+.RS
+.IP \fBSWITCH\fP
+\- 0 to avoid this mode \fB[Default]\fR, 1 to use this escape mode
+.IP \fBCRUST\fP
+\- The number of crustal layers in the supplied model
+.IP \fBTDNOD\fP
+\- The number of thermodynamic nodes used to compute the velocity profile (assumes a velocity model as created by the redefine subroutine with 5 interpolation nodes).
+.IP \fBNSAMP\fP
+\- The number individual points to discretise the receiver function
+.IP \fBDT\fP
+\- The time interval between the adjacent points (in seconds)
+
+.RE
+
+.SH OPTIONS: SAMPLING WITH COVARIANCE MATRICES
+
+.TP
+.B \-covmat \fR[\fINUMBER\fR]
+Set \fB\-covmat\fR 1 to use covariance matrix to generate proposals rather than presume independent parameters \fB[default]\fR.
+
+.TP
+.B \-cmupd \fR[\fINUMBER\fR]
+Turns on Adaptive Metropolis. The Covariance matrix update will happen every NUMBER-th MCMC iterations for every column of the model independently from others. This option is available ONLY with TileDB data output.
+
+.TP
+.B \-cmlast \fR[\fINUMBER\fR]
+Set the MCMC step limit for the Covariance Matrix updates. No covariance matrix updates will take place after the step.
+
+.TP
+.B \-burnin \fR[\fINUMBER\fR]
+The number of MCMC iterations to be truncated when updating the covariance matrix.
+
+.TP
+.B \-chtocm \fR[\fIinput file\fR \fR[\fIoutput directory\fR] \fR[\fIthin fact\fR]
+Reads a chain (in a format produced by \fB\-readtiledbcolumn\fR command) and computes the covariance matrix, correlation matrix and cholesky decomposition factor (to be stored in the output directory). The last parameter is the thinning factor, i.e. specifying it equals 1000 means that every 1000th chain state will be taken into account.
+
+.TP
+.B \-fixbounds \fR[\fIMODE\fR]
+A rule to fix the setup if any values of the initial model exceed the proposal bounds. Use mode equal to 1 to change the initial value to max-stdev or min+stdev, or use 2 to change the bound to the value-stdev or value+stdev. Any other value will cause an emergency stop. The default value is zero.
+
+.SH OPTIONS: MISCELLANEOUS
+
+.TP
+.B \-nomp \fR[\fINUMBER\fR]
+Set the number of OpenMP threads to be used in computations. By \fB[default]\fR, LitMod goes to use all the available OpenMP threads.
+
+.TP
+.B \-mpiwizard
+Starts interactive wizard to estimate the number of CPUs for the given setup (number of chains, OMCMC, MTM/MTMIS and so on).
+
+.TP
+.B \-mpisyntwizard
+Starts interactive wizard to estimate distribution of the CPUs during domain initialisation phase and synthetic runs. Outputs coordinate ranges to be computed by each individual CPU.
+
+.TP
+.B \-noacc \fR[\fINUMBER\fR]
+Do not accept any proposals with \fB\-noacc\fR 1. Useful to look at proposal distribution (see also \fB\-s\fR 2 option).
+
+.TP
+.B \-t \fR[\fINUMBER\fR]
+Test mode. Normally no test mode is activated, available options are the following integers:
+.RS
+.IP \fB1\fP
+\- Twin Peaks MPI-PT-MH Test.
+.IP \fB2\fP
+\- Smiley Face MPI-PT-MH Test.
+.IP \fB3\fP
+\- overwrite the model input depth of a selected layer bottom with the given value (in m above sea level, i.e. \fB\-t\fR 3 3 -30000 0 sets Moho (layer 3 for a default crustal section with sediments, upper crust and lower crust) at 30 km depth for the whole model) and continue computations for the altered model. The last parameter (1 or 0) shows whether to reassign the whole model (0) or modify only the columns which will be actually sampled (1). Notice, that the list of fixed columns (with \fB\-fixcol\fR) is ignored in this function.
+.IP \fB4\fP
+\- Spiral Walk Mode. It computes the predictions of LitMod3D solvers (forwards) for different locations of a selected layer bottom. During run in this test mode, first, the depth of a given layer is assigned to a provided value. Then LitMod3D computes the forward problem for the entire model and enters into MCMC simulations part. Instead of random selection of columns, it consequently picks all the columns one after another and changes the prescribed layer boundary depth with a given step. Then it computes all the forward problems and produces all the outputs as if that proposal was an accepted MCMC step. LitMod3D stops when the second depth boundary was achieved. Sample usage: \fB\-t\fR 4 2 1000 -2000 -200 , where 4 is test mode, 2 is the number of a layer to change, 1000 and -2000 are two boundaries in meters (layer depth in m above sea level), and -200 gives the step. Note, that sign of step must agree with direction (from boundary one to boundary two).
+.IP \fB5\fP
+\- Test Metropolis-Hastings with desired proposal distribution.
+.IP \fB6\fP
+\- Orthogonal Parallel MCMC test. Requires proper setup of only one OMCMC.
+.IP \fB8\fP
+\- Alter the chemical composition of certain thermodynamic nodes (cube with specified edges). For example: \fB\-t\fR 8 2 5 3 8 1 2 40. 10. 10. 30. 10. sets nodes in the X range from 2 to 5, Y range from 3 to 8, for mantle layers number 1 and 2 (starting from upper lithospheric mantle) with SiO2 = 40%, Al2O3=10%, FeO=10%, MgO=30%, CaO=10% (all the parameters are read consequently).
+.IP \fB9\fP
+\- Alter the reference density of a certain crustal layer (cube with specified edges). For example: \fB\-t\fR 9 2 5 3 8 2 3150. sets the reference density in the X range from 2 to 5, Y range from 3 to 8, layer number 2 to 3150 kg/m3.
+.IP \fB12\fP
+\- Test LSQ plane sub (for gravity solver).
+.IP \fB13\fP
+\- Test TileDB data writing and reading.
+.IP \fB14\fP
+\- Test gravity subroutines (a directory with input file called gravtestinput.dat must be specified via -i option).
+.IP \fB15\fP
+\- Test calculation of attenuation (produces output for a hard-coded input, i,e. pressure of 11 GPa, 1 mm grains, temperature from 1250 to 3250 degC).
+.IP \fB16\fP
+\- Test Adaptive Metropolis with multidimensional normal distribution.
+.IP \fB17-18\fP
+\- Setup an anomaly and compute the corresponding gravity fields. Use \fB\-t\fR 17 21 0.5 21 0.5 30000 2000 3 2780 3245 0.0 0.0 5 to setup a model with 21 cells in longitudal and latitudal directions, 0.5 degree spacing, 30000 m is the default Moho depth (the background elevation is at 0 level), 2000 m is the elevation of the anomaly, 2780 is the crustal density, 3245 is the mantle density, zeroes are for longitudal and latitudal offsets of the points of observations relative to the centres of the columns, and 5 is the domain boundary extension in the number of columns (i.e. side prisms are wider than the internal prisms). Test 17 uses Airy model and test 18 uses Pratt model for compensation. NB: usage of the offsets for the points of observations might result in a global shift of the anomalies due to the mean and LSQ plane routines that we use to postprocess the gravity data.
+.IP \fB19\fP
+Generate mantle chemical composition without randomisation for a given Al2O3 content. E.g. \fB\-t\fR 19 3.65 to get SiO2 45.87 Al2O3 3.65 FeO 8.39 MgO 38.95 CaO 3.14 .
+.IP \fB20\fP
+Compute density, Vp, Vs, bulk rock properties, phase proportions and their compositions for given P (GPa), T (degC), Al2O3, FeO, MgO, CaO (wt.%). SiO2 is computed as 100%-Al2O3-FeO-MgO-CaO. E.g. \fB\-t\fR 20 2.5 1200 3.65 8.39 38.95 3.14 to compute SiO2 45.87 Al2O3 3.65 FeO 8.39 MgO 38.95 CaO 3.14 under 2.5 GPa and 1200 degC.
+.IP \fB21-28\fP
+Test sampling of various functions with the MCMC sampler. The examples include Ackley, Booth's, Branin, Flower, Michalewicz, Rosenbrock's Banana, Wheeler's ridge, and Two Humps functions.
+.IP \fB29\fP
+\- Compute the potential fields for a given LitMod3D structure (crustal layers with increasing densities and mantle nodes). The input file must be called gravtestinput3d.dat. Also requires a valid header.dat file.
+.RE
+
+.SH ADDITIONAL SCRIPTS
+
+.TP
+.B ./create_covmat.sh \fR[\fIfolder with model\fR] \fR[\fInumber of MCMC steps\fR]
+This script runs LitMod3D for each column individually, looping through all the columns consequentally. After each run it extracts the data from TileDB files (i.e. LitMod3D must be compiled with TileDB) to compute the covariance matrix for the particular column and append it to a data file in the input directory.
+
+.TP
+.B ./testsuite.sh \fR[\fIOPTION(S)\fR]
+Testsuite is a script to perform an extensive testing of the LitMod3D_4inv binary. The user may previously need to modify the script header to provide the exact addresses to system fortran and C complires, as well as MPICH/OpenMPI installation and valgrind. By default the script attempts to build the LitMod3D_4inv binary with all the possible options. Additional tests can be invoked with:
+.RS
+.IP \fBt\fP
+\- Run tests for individual parts of the LitMod3D_4inv.
+.IP \fBr\fP
+\- Run actual LitMod3D_4inv synthetic and inversion computations, as well as a few tests for their results.
+.IP \fBv\fP
+\- Use valgrind toolkit to analyze the LitMod3D_4inv runs extensively (activates r option)
+.IP \fBs\fP
+\- Perform the default sets of tests for the last built exeutable (without rebuilding it).
+.RE
+
+.TP
+.B ./grav_plots.py is a python script to test various anomalies (\fB\-t\fR 17) and plot the resulting gravity fields.
+
+.TP
+.B ./lines.sh \fR[\fIinput file\fR] \fR[\fIoutput file\fR] \fR[\fIkeyword\fR] \fR[\fIthinning factor\fR]
+Extract lines starting with a specific keyword produced by one of \fB\-s\fR options and produces a CSV file from it.
+
+.TP
+.B ./png_add_title.sh \fR[\fIinput file\fR]
+Add a caption and values in each cell to a PNG image produced by LitMod3D_4inv. For batch processing, use:
+.br
+$ for f in out/*.png ; do ./png_add_title.sh $f ; done
+
+.TP
+.B Consolidating and vacuuming TileDB output
+The TileDB output produced by LitMod3D_4inv inversions might contain tons of folders and its sharing might be extremely inefficient. Use the following python script to consolidate the data:
+.br
+import tiledb
+.br
+tiledb.consolidate(path_to_tiledb)
+.br
+tiledb.vacuum(path_to_tiledb)
+
+.TP
+.B ./xyz_to_vtk.sh \fR[\fIinput file\fR] \fR[\fIoutput file\fR] \fR[\fIStart event (optional)\fR] \fR[\fILast event (optional)\fR]
+Convert the default output of the LitMod3D_4inv Ray Tracer (individual ray paths) from XYZ (GMT) format to a VTK file.
+
+.SH BIBLIOGRAPHY
+.TP
+.B Afonso et al. (2016)\fR 3D multi-observable probabilistic inversion for the compositional and thermal structure of the lithosphere and upper mantle III: Thermochemical tomography in the Western-Central US. J. Geophys. Res., 10.1002/2016JB013049
+.TP
+.B Afonso et al. (2013)\fR 3D multi-observable probabilistic inversion for the compositional and thermal structure of the lithosphere and upper mantle II: general methodology and resolution analysis. J. Geophys. Res., 118, 1650-1676, DOI: 10.1002/jgrb.50123
+.TP
+.B Afonso et al. (2013)\fR 3D multi-observable probabilistic inversion for the compositional and thermal structure of the lithosphere and upper mantle I: a priori petrological information and geophysical observables. J. Geophys. Res., 118, 2586-2617, DOI: 10.1002/jgrb.50124
+.TP
+.B Fullea et al. (2009)\fR LitMod3D: An interactive 3-D software to model the thermal, compositional, density, seismological, and rheological structure of the lithosphere and sublithospheric upper mantle. Geochemistry, Geophysics, Geosystems, 10, DOI: 10.1029/2009GC002391
+
+.SH USED LITERATURE
+
+.TP
+.B Afonso et al. (2008)\fR Integrated geophysical‐petrological modeling of the lithosphere and sublithospheric upper mantle: Methodology and applications. Geochemistry, Geophysics, Geosystems, 9, DOI: 10.1029/2007GC001834
+
+.TP
+.B Haario et al. (2001)\fR  An adaptive Metropolis algorithm. Bernoulli, 7, 223-242
+
+.TP
+.B Herrmann (1978)\fR Computer programs in earthquake seismology. Vol. 2: surface wave program, St. Louis: St. Louis. University
+
+.TP
+.B Jackson and Faul (2010)\fR Grainsize-sensitive viscoelastic relaxation in olivine: Towards a robust laboratory-based model for seismological application. Physics of the Earth and Planetary Interiors, 183, 151-163, DOI: 10.1016/j.pepi.2010.09.005
+
+.TP
+.B Kochenderfer, Wheeler (2019)\fR Algorithms for Optimization. The MIT press, p. 425-432
+
+.TP
+.B Kroese, Taimre, Botev (2011)\fR Handbook of Monte Carlo methods. Wiley, p. 258
+
+.TP
+.B Liu (2008)\fR Monte-Carlo strategies in scientific computing. Springer, pp. 111-121
+
+.TP
+.B Martino et al. (2016)\fR Orthogonal parallel MCMC methods for sampling and optimization. Digital Signal Processing, 58, DOI: 10.1016/j.dsp.2016.07.013
+
+.TP
+.B Martino and Louzada (2017)\fR Issues in the Multiple Try Metropolis mixing. Computational Statistics, 32(1), 239-252, DOI: 10.1016/j.dsp.2016.07.013
+
+.TP
+.B Mosegard and Tarantola (1995)\fR Monte Carlo sampling of solutions to inverse problems. J. Geophys. Res., 100, 12431-12447, DOI: 10.1007/s00180-016-0643-9
+.\" Cascade rule for immediate reject of partially computed proposals with high misfit:
+.\" "once a model is proposed by the rules sampling the prior, the forward problem is solved for the first data subset. The proposed model may then be accepted or rejected. If it is rejected by the Metropolis rule (typically when there is a large misfit between the synthetic data and the observed data for this first data subset), then there is no need to solve the forward prob- lem for the other data subsets, and the rules sampling the prior have to propose a new mode"
+
+.TP
+.B Rasmussen and Williams (2006)\fR Gaussian Processes for Machine Learning. MIT Press, p.201
+.\" Adding diagonal matrix fo epsilon to ensure successful Cholesky decomposition:
+.\" "In practice it may be necessary to add a small multiple of the identity matrix $\epsilon I$ to the covariance matrix for numerical reasons. This is because the eigenvalues of the matrix K can decay very rapidly [...] and without this stabilization the Cholesky decomposition fails. The effect on the generated samples is to add additional independent noise of variance $\epsilon$."
+
+.TP
+.B Sambridge (2014)\fR A Parallel Tempering algorithm for probabilistic sampling and multimodal optimization. Geophysical Journal International, 196, DOI: 10.1093/gji/ggt342
+
+.TP
+.B Tarantola (2005) "Inverse Problem Theory and Methods for Model Parameter Estimation". SIAM. pp 81-96.
+
+.TP
+.B Turcotte and Schubert (1982)\fR Geodynamics. Applications of continuum physics to geological problems. John Wiley and Sons. pp. 198-230.
+
+.TP
+.B Uieda et al. (2016)\fR Tesseroids: Forward-modeling gravitational fields in spherical coordinates, Geophysics, F41-F48, DOI: 10.1190/geo2015-0204.1
+
+.SH REFERENCE SOFTWARE
+
+.TP
+.B Gravity\fR:
+.UR https://tesseroids.readthedocs.io/
+Tesseroids software
+.UE
+.\" Test script is supplied in input_grav folder
+
+.TP
+.B Anelasticity (quality factor)\fR:
+.UR http://web.mit.edu/hufaul/www/Anelasticity.html
+matlab code, [Jackson and Faul, 2010]
+.UE
+.\" omega=2*pi/1;
+.\" for i=0:100
+.\"     [J1,J2] = creep10(1250+20*i,0.001,11.e9, omega);
+.\"     Q = J1/J2;
+.\"     disp ([num2str(1250+20*i) ' ' num2str(omega) ' ' num2str(Q)])
+.\" end
+.\" omega=2*pi/35;
+.\" for i=0:100
+.\"     [J1,J2] = creep10(1250+20*i,0.001,11.e9, omega);
+.\"     Q = J1/J2;
+.\"     disp ([num2str(1250+20*i) ' ' num2str(omega) ' ' num2str(Q)])
+.\" end
+.\" omega=2*pi/150;
+.\" for i=0:100
+.\"     [J1,J2] = creep10(1250+20*i,0.001,11.e9, omega);
+.\"     Q = J1/J2;
+.\"     disp ([num2str(1250+20*i) ' ' num2str(omega) ' ' num2str(Q)])
+.\" end
+
+.TP
+.B Rayleigh dispersion curves\fR:
+.UR http://www.eas.slu.edu/eqc/eqccps.html
+Computer Programs in Seismology software
+.UE
+.\" The following lines should be run to convert LitMod3D velocity model into CPS format and process it:
+.\" echo -e "MODEL.01\nLITMOD3D\nISOTROPIC\nKGS\nFLAT EARTH\n1-D\nCONSTANT VELOCITY\nLINE08\nLINE09\nLINE10\nLINE11\n      H(KM)   VP(KM/S)   VS(KM/S) RHO(GM/CC)     QP         QS       ETAP       ETAS      FREFP      FREFS" > cpsprof.dat
+.\" tail -n +2 litmod_vel_struct.dat | awk '{print $1" "$4" "$5" "$2" "$3" "$6" "$6" 0. 0. 1. 1."}' | perl -pe "s/\r//g" >> cpsprof.dat
+.\" ./sprep96 -M cpsprof.dat -DT 1 -NPTS 1000 -R ; ./sdisp96 ; ./sdpsrf96 -R -ASC ; ./sregn96  ; ./sdpegn96 -R -U -ASC
+.\" ./sprep96 -M cpsprof.dat -DT 1 -NPTS 1000 -L ; ./sdisp96 ; ./sdpsrf96 -L -ASC ; ./slegn96  ; ./sdpegn96 -L -U -ASC
+
+.SH UPDATES
+.UR https://bitbucket.org/litmod/litmod3d_4inv
+LitMod3D_4inv online repository
+.UE
+
+.SH AUTHORS
+Juan Carlos Afonso, Ilya Fomin
+
+.SH CONTRIBUTORS
+I. Fomin, F. Salajegheh, J.A.D. Connolly, N. Rawlinson
+
+.SH APPENDIX 1 - PROPOSAL ERROR CODES
+
+.TP
+Following codes describe the result of proposal generation and computation
+
+.RS
+.IP \fB-100\fP
+Metropolis-Hastings Cascase Rule (immediate reject)
+.IP \fB-30\fP
+Dispersion curve calculator failed
+.IP \fB-21\fP
+Thermodynamic depth determination failed
+.IP \fB-20\fP
+Column structure computation failed
+.IP \fB-1--19\fP
+Perple_X failed at node N
+.IP \fB0\fP
+.B Proposal successfully computed till this stage\fR
+.IP \fB2\fP
+Sampler of an independent parameter produced a value (except chemical composition) outside the bounds using a normal distribution
+.IP \fB3\fP
+The sampler for chemical compositions produced a negative amount of any compound
+.IP \fB30\fP
+The sampler for Csubmoho failed
+.IP \fB31-39\fP
+The sampler for inter-mantle boundary (MLD, LAB etc) failed
+.IP \fB101-103\fP
+Temperature sampling produced a value outside the bounds (at 40 km beneath LAB, at mid-sublithospheric thermodynamic nodes and at 410 km depth, correspondingly)
+.IP \fB40\fP
+Lithospheric composition corrupted after sampling
+.IP \fB42\fP
+Lithospheric mantle Al2O3 sampling produced a value outside the bounds.
+.IP \fB43-45\fP
+Lithospheric mantle FeO, or MgO, or CaO sampling with a covariance matrix produced a value outside the bounds.
+.IP \fB50\fP
+Sublithospheric composition corrupted after sampling
+.IP \fB52\fP
+Sublithospheric mantle Al2O3 sampling produced a value outside the bounds.
+.IP \fB53-55\fP
+Sublithospheric mantle FeO, or MgO, or CaO sampling with a covariance matrix produced a value outside the bounds.
+.IP \fB201-209\fP
+Crustal layer density sampling produced a value outside the bounds (last digit tells the layer number)
+.IP \fB301-309\fP
+Crustal layer Vp/Vs sampling produced a value outside the bounds (last digit tells the layer number)
+.IP \fB400\fP
+Crustal layer thicknesses are corrupted after sampling them as independent components (also triggered if the proposed thickness of any existing layer is less than threshold of few metres).
+.IP \fB401-409\fP
+Crustal layer thickness sampling produced a value outside the bounds (last digit tells the layer number)
+.IP \fB501-509\fP
+Crustal layer sedimentary density produced a value outside the bounds (last digit tells the layer number)
+.IP \fB89\fP
+LAB sampling produced a value outside the bounds
+.RE
+
+.SH APPENDIX 2 - PROPOSAL GENERATION MODES
+
+.TP
+Following codes describe the way to generate proposals for each specific parameter (variable, unknown). Should be specified in propbounds files.
+
+.RS
+.IP \fB0\fP
+do not sample
+.IP \fB1\fP
+sample the chemical compounds (FeO, MgO, and CaO) using a uniform distribution and min and max bounds as a function of given Al2O3 content (which should be set using other proposal modes
+.IP \fB2\fP
+sample the chemical compounds (FeO, MgO, and CaO) using a normal distribution centred at the current compound content and min and max bounds as a function of given Al2O3 content (which should be set using other proposal modes
+.IP \fB11\fP
+sample the parameter from a uniform distribution between min and max bounds specified in the input files (independently from the other components)
+.IP \fB12\fP
+sample the parameter from a uniform distribution between min and max bounds specified in the input files (independently from the other components) before the first adaptation, and then sample with the covariance matrix
+.IP \fB20\fP
+sample the parameter from a normal distribution centred at the current value independently from the other components
+.IP \fB21\fP
+sample the parameter from a normal distribution centred at the current value (independently from the other components) with min and max bounds specified in the input files. If the drawn value is out of the min and max bounds, the whole proposal is rejected (misfit is set to infinity).
+.IP \fB22\fP
+sample the parameter from a normal distribution centred at the current value (independently from the other components). The value is resampled until a number within the min and max bounds specified in the input files is obtained.
+.IP \fB23\fP
+sample the parameter from a normal distribution centred at the current value (independently from the other components). If the drawn value is out of min and max bounds specified in the input files, only this value will be forcibly set to the corresponding bound.
+.IP \fB30\fP
+sample the parameter using a covariance matrix (so it can be correlated with the other parameters, while not correlated with the others)
+.IP \fB31\fP
+sample the parameter using a covariance matrix (so it can be correlated with the other parameters, while not correlated with the others). If the drawn value is out of the min and max bounds specified in the input files, the whole proposal is rejected (misfit is set to infinity).
+.IP \fB32\fP
+sample the parameter using a covariance matrix (so it can be correlated with the other parameters, while not correlated with the others). If the drawn value is out of min and max bounds specified in the input files, only this value will be resampled using the square root of the corresponding diagonal element of the covariance matrix as a standard deviation for a corresponding normal distribution centred at the current value.
+.IP \fB33\fP
+sample the parameter using a covariance matrix (so it can be correlated with the other parameters, while not correlated with the others). If the drawn value is out of min and max bounds specified in the input files, only this value will be forcibly set to the corresponding bound.
+.RE
+
+.TP
+Multiproposal techniques impose certain criteria on the proposal distribution:
+.RS
+.IP \fBMTM\fP
+\- must be used with normal proposal distributions centred at the current state of the chain. Do not use it with a uniform distribution of any component.
+.IP \fBMTMIS\fP
+\- must be used with uniform proposal distributions.
+.RE
+
+.SH APPENDIX 3 - COLUMN INDEXING
+
+.TP
+The two ways to index columns are used in different situation:
+.RS
+.IP \fB(Ix,Iy)\fP
+\- Ix sets the longitudal index starting from 1 at the southern edge of the model and going up to the northern edge at Nx. Iy sets the latitudal index starting from 1 at the western edge of the model and going up to the western edge at Ny. The column data supplied in the input files is assigned to the nearmost columns.
+.IP \fB(Icol)\fP
+\- Column index is defined as Icol = (Iy-1)*Nx + Ix , where x stands for longitude and y stands for latitude.
+.RE
